@@ -79,6 +79,9 @@ struct
 
   val empty = ~1
 
+  fun compare (i, j) =
+    if i = j then EQUAL else String.compare (getStationName i, getStationName j)
+
   fun equal (i, j) =
     i = j
     orelse (i >= 0 andalso j >= 0 andalso getStationName i = getStationName j)
@@ -197,12 +200,17 @@ val _ = reportTime "process entries" (fn _ =>
       T.insertCombineWeights table (i, weight)
     end))
 
+val compacted = reportTime "compact" (fn _ =>
+  DelayedSeq.toArraySeq
+    (DelayedSeq.mapOption (fn xx => xx) (T.unsafeViewContents table)))
+
+val result = reportTime "sort" (fn _ =>
+  Mergesort.sort (fn (a, b) => Key.compare (#1 a, #1 b)) compacted)
+
 (* =========================================================================
  * print results
  *)
 
-val result = DelayedSeq.toArraySeq
-  (DelayedSeq.mapOption (fn xx => xx) (T.unsafeViewContents table))
 
 val _ = print
   ("num unique stations: " ^ Int.toString (Seq.length result) ^ "\n")
