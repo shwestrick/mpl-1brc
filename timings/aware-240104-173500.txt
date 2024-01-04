@@ -1,0 +1,18 @@
+→ taskset --cpu-list 1-4,73-76 ./main @mpl procs 8 -- /usr3/data/1brc/measurements.txt --verbose
+loading /usr3/data/1brc/measurements.txt
+load file: 2.8069s
+tokenize: 32.0125s
+number of entries: 1000000000
+process entries: 109.2122s
+compact: 0.0002s
+sort: 0.0013s
+
+
+→ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose
+loading /usr3/data/1brc/measurements.txt
+load file: 1.6657s
+tokenize: 3.0189s
+number of entries: 1000000000
+process entries: 11.0142s
+compact: 0.0003s
+sort: 0.0021s
