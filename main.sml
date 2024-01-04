@@ -1,8 +1,12 @@
 structure CLA = CommandLineArgs
 
+val verbose = CLA.parseFlag "verbose"
+fun vprint s =
+  if verbose then print s else ()
+
 fun reportTime msg f =
   let val (result, tm) = Util.getTime f
-  in print (msg ^ ": " ^ Time.fmt 4 tm ^ "s\n"); result
+  in vprint (msg ^ ": " ^ Time.fmt 4 tm ^ "s\n"); result
   end
 
 fun assert b msg =
@@ -12,7 +16,7 @@ fun assert b msg =
 
 val filename = List.hd (CLA.positional ())
                handle _ => Util.die "missing input filename"
-val _ = print ("loading " ^ filename ^ "\n")
+val _ = vprint ("loading " ^ filename ^ "\n")
 
 val contents: char Seq.t = reportTime "load file" (fn _ =>
   ReadFile.contentsSeq filename)
@@ -23,7 +27,7 @@ val (numTokens, getTokenRange) = reportTime "tokenize" (fn _ =>
 val _ = assert (numTokens mod 2 = 0) "bad file? should be even number of tokens"
 
 val numEntries = numTokens div 2
-val _ = print ("number of entries: " ^ Int.toString numEntries ^ "\n")
+val _ = vprint ("number of entries: " ^ Int.toString numEntries ^ "\n")
 
 (* ======================================================================
  * Identify each entry by its line number
@@ -42,6 +46,10 @@ fun getMeasurement (i: index) : measurement =
   let
     val (start, stop) = getTokenRange (2 * i + 1)
 
+    val (start, isNeg) =
+      if Seq.nth contents start = #"-" then (start + 1, true)
+      else (start, false)
+
     val numDigits = stop - start - 1 (* exclude the dot *)
     fun getDigit i =
       let
@@ -51,8 +59,10 @@ fun getMeasurement (i: index) : measurement =
       in
         Char.ord c - Char.ord #"0"
       end
+
+    val x = Util.loop (0, numDigits) 0 (fn (acc, i) => 10 * acc + getDigit i)
   in
-    Util.loop (0, numDigits) 0 (fn (acc, i) => 10 * acc + getDigit i)
+    if isNeg then ~x else x
   end
 
 (* =========================================================================
@@ -66,7 +76,7 @@ val _ =
     ()
   else
     Util.for (0, numEntries) (fn i =>
-      print (getStationName i ^ ";" ^ Int.toString (getMeasurement i) ^ "\n"))
+      vprint (getStationName i ^ ";" ^ Int.toString (getMeasurement i) ^ "\n"))
 
 
 (* ==========================================================================
@@ -212,7 +222,7 @@ val result = reportTime "sort" (fn _ =>
  *)
 
 
-val _ = print
+val _ = vprint
   ("num unique stations: " ^ Int.toString (Seq.length result) ^ "\n")
 
 val _ = print "{"
@@ -220,13 +230,15 @@ val _ = Util.for (0, Seq.length result) (fn i =>
   let
     val (idx, weight as {min, max, tot, count}) = Seq.nth result i
     val name = getStationName idx
-    val avg = Real.fromInt tot / Real.fromInt count
+    val avg = Real.fromInt tot / Real.fromInt count / 10.0
     fun fmt r =
-      Real.fmt (StringCvt.FIX (SOME 1)) (r / 10.0)
+      let val (prefix, r) = if r < 0.0 then ("-", ~r) else ("", r)
+      in prefix ^ Real.fmt (StringCvt.FIX (SOME 1)) r
+      end
   in
     print
-      (name ^ "=" ^ fmt (Real.fromInt min) ^ "/" ^ fmt avg ^ "/"
-       ^ fmt (Real.fromInt max));
+      (name ^ "=" ^ fmt (Real.fromInt min / 10.0) ^ "/" ^ fmt avg ^ "/"
+       ^ fmt (Real.fromInt max / 10.0));
     if i < Seq.length result - 1 then print ", " else ()
   end)
 val _ = print "}\n"
