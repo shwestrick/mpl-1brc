@@ -74,7 +74,8 @@ struct
   val empty = ~1
 
   fun equal (i, j) =
-    i = j orelse getStationName i = getStationName j
+    i = j
+    orelse (i >= 0 andalso j >= 0 andalso getStationName i = getStationName j)
 
   fun hashStr str =
     let
@@ -138,7 +139,11 @@ struct
 
   fun unpack_atomic_combine_into ({min, max, tot, count}: pack, output) : unit =
     let
-      val (arr, start, _) = ArraySlice.base output
+      val (arr, start, sz) = ArraySlice.base output
+
+    (* val _ = print
+      ("unpack_atomic_combine_into " ^ Int.toString start ^ " "
+       ^ Int.toString sz ^ "\n") *)
     in
       (* TODO: these could be fetchAndMin/fetchAndMax if MPL exposed these
        * as primitives.
@@ -163,3 +168,40 @@ end
 
 
 structure T = PackedWeightedHashTable (structure K = Key structure W = Weight)
+
+
+(* ==========================================================================
+ * do the main loop
+ *)
+
+(* capacity 20000 should be a reasonable choice according to the spec of
+ * the problem, which says that there will be at most 10000 unique station
+ * names
+ *)
+val capacity = CLA.parseInt "table-capacity" 20000
+
+val table = T.make {capacity = capacity}
+
+val _ = reportTime "process entries" (fn _ =>
+  ForkJoin.parfor 100 (0, numEntries) (fn i =>
+    let
+      val m = getMeasurement i
+      val weight = {min = m, max = m, tot = m, count = 1}
+    in
+      T.insertCombineWeights table (i, weight)
+    end))
+
+val _ = print "done!\n\n"
+val result = T.unsafeViewContents table
+val _ = Util.for (0, DelayedSeq.length result) (fn i =>
+  case DelayedSeq.nth result i of
+    NONE => ()
+  | SOME (idx, weight as {min, max, tot, count}) =>
+      let
+        val name = getStationName idx
+        val avg = Real.round (Real.fromInt tot / Real.fromInt count)
+      in
+        print
+          (name ^ " " ^ Int.toString min ^ " " ^ Int.toString avg ^ " "
+           ^ Int.toString max ^ "\n")
+      end)

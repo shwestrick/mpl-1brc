@@ -61,6 +61,8 @@ struct
     (input as T {keys, packedWeights}) (x, v) =
     let
       val n = Array.length keys
+      (* val _ = print
+        ("insertCombineWeightsLimitProbes capacity=" ^ Int.toString n ^ "\n") *)
 
       fun claimSlotAt i = bcas (keys, i, K.empty, x)
 
@@ -74,6 +76,8 @@ struct
           loop 0 probes
         else
           let
+            (* val _ = print
+              ("insertCombineWeightsLimitProbes.loop " ^ Int.toString i ^ "\n") *)
             val k = Array.sub (keys, i)
           in
             if K.equal (k, K.empty) then
