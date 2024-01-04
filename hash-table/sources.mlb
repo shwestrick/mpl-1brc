@@ -1,0 +1,16 @@
+local
+  $(SML_LIB)/basis/basis.mlb
+  $(SML_LIB)/basis/fork-join.mlb
+  $(SML_LIB)/basis/mlton.mlb
+  ../lib/github.com/mpllang/mpllib/sources.mpl.mlb
+
+  KEY.sml
+  PACKED_WEIGHT.sml
+  PACKED_WEIGHTED_HASH_TABLE.sml
+  PackedWeightedHashTable.sml
+in
+  signature KEY
+  signature PACKED_WEIGHT
+  signature PACKED_WEIGHTED_HASH_TABLE
+  functor PackedWeightedHashTable
+end
