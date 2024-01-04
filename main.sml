@@ -197,17 +197,28 @@ val _ = reportTime "process entries" (fn _ =>
       T.insertCombineWeights table (i, weight)
     end))
 
-val _ = print "done!\n\n"
-val result = T.unsafeViewContents table
-val _ = Util.for (0, DelayedSeq.length result) (fn i =>
-  case DelayedSeq.nth result i of
-    NONE => ()
-  | SOME (idx, weight as {min, max, tot, count}) =>
-      let
-        val name = getStationName idx
-        val avg = Real.round (Real.fromInt tot / Real.fromInt count)
-      in
-        print
-          (name ^ " " ^ Int.toString min ^ " " ^ Int.toString avg ^ " "
-           ^ Int.toString max ^ "\n")
-      end)
+(* =========================================================================
+ * print results
+ *)
+
+val result = DelayedSeq.toArraySeq
+  (DelayedSeq.mapOption (fn xx => xx) (T.unsafeViewContents table))
+
+val _ = print
+  ("num unique stations: " ^ Int.toString (Seq.length result) ^ "\n")
+
+val _ = print "{"
+val _ = Util.for (0, Seq.length result) (fn i =>
+  let
+    val (idx, weight as {min, max, tot, count}) = Seq.nth result i
+    val name = getStationName idx
+    val avg = Real.fromInt tot / Real.fromInt count
+    fun fmt r =
+      Real.fmt (StringCvt.FIX (SOME 1)) (r / 10.0)
+  in
+    print
+      (name ^ "=" ^ fmt (Real.fromInt min) ^ "/" ^ fmt avg ^ "/"
+       ^ fmt (Real.fromInt max));
+    if i < Seq.length result - 1 then print ", " else ()
+  end)
+val _ = print "}\n"
