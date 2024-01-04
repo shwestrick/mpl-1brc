@@ -59,8 +59,14 @@ fun getMeasurement (i: index) : measurement =
  * spot-check: confirm parsed correctly
  *)
 
-val _ = Util.for (0, numEntries) (fn i =>
-  print (getStationName i ^ ";" ^ Int.toString (getMeasurement i) ^ "\n"))
+val showParsed = CLA.parseFlag "check-show-parsed"
+
+val _ =
+  if not showParsed then
+    ()
+  else
+    Util.for (0, numEntries) (fn i =>
+      print (getStationName i ^ ";" ^ Int.toString (getMeasurement i) ^ "\n"))
 
 
 (* ==========================================================================
