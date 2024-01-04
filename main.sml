@@ -113,23 +113,23 @@ struct
 
   fun hashStr (numChars, getChar) =
     let
-      (* just cap at 32 for long strings *)
-      val n = Int.min (32, numChars)
+      (* just cap it for long strings *)
+      val n = Int.min (5, numChars)
       fun c i =
-        Word64.fromInt (Char.ord (getChar i))
+        Word32.fromInt (Char.ord (getChar i))
       fun loop h i =
-        if i >= n then h else loop (Word64.+ (Word64.* (h, 0w31), c i)) (i + 1)
+        if i >= n then h else loop (Word32.+ (Word32.* (h, 0w31), c i)) (i + 1)
 
       val result = loop 0w7 0
     in
-      Util.hash64_2 result
+      Util.hash32_2 result
     end
 
   fun hash i =
     let
       val (start, stop) = getTokenRange (2 * i)
     in
-      Word64.toIntX (hashStr (stop - start, fn i =>
+      Word32.toIntX (hashStr (stop - start, fn i =>
         Seq.nth contents (start + i)))
     end
 end
