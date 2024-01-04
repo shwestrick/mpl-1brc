@@ -92,16 +92,31 @@ struct
   fun compare (i, j) =
     if i = j then EQUAL else String.compare (getStationName i, getStationName j)
 
-  fun equal (i, j) =
-    i = j
-    orelse (i >= 0 andalso j >= 0 andalso getStationName i = getStationName j)
+  fun equal (i1, i2) =
+    if i1 = i2 then
+      true
+    else if i1 < 0 orelse i2 < 0 then
+      false
+    else
+      let
+        val (start1, stop1) = getTokenRange (2 * i1)
+        val (start2, stop2) = getTokenRange (2 * i2)
 
-  fun hashStr str =
+        fun check_from (j1, j2) =
+          j1 = stop1
+          orelse
+          ((Seq.nth contents j1 = Seq.nth contents j2)
+           andalso check_from (j1 + 1, j2 + 1))
+      in
+        (stop1 - start1) = (stop2 - start2) andalso check_from (start1, start2)
+      end
+
+  fun hashStr (numChars, getChar) =
     let
       (* just cap at 32 for long strings *)
-      val n = Int.min (32, String.size str)
+      val n = Int.min (32, numChars)
       fun c i =
-        Word64.fromInt (Char.ord (String.sub (str, i)))
+        Word64.fromInt (Char.ord (getChar i))
       fun loop h i =
         if i >= n then h else loop (Word64.+ (Word64.* (h, 0w31), c i)) (i + 1)
 
@@ -111,7 +126,12 @@ struct
     end
 
   fun hash i =
-    Word64.toIntX (hashStr (getStationName i))
+    let
+      val (start, stop) = getTokenRange (2 * i)
+    in
+      Word64.toIntX (hashStr (stop - start, fn i =>
+        Seq.nth contents (start + i)))
+    end
 end
 
 
