@@ -7,10 +7,7 @@ struct
 
   datatype t =
     T of
-      { keys: K.t array
-      , emptykey: K.t
-      , packedWeights: W.component array (* manually unboxed *)
-      }
+      {keys: K.t array, packedWeights: W.component array (* manually unboxed *)}
 
   exception Full
   exception DuplicateKey
@@ -23,33 +20,33 @@ struct
       (packedWeights, W.NUM_COMPONENTS * i, SOME W.NUM_COMPONENTS)
 
 
-  fun make {capacity, emptykey} =
+  fun make {capacity} =
     let
-      val keys = SeqBasis.tabulate 5000 (0, capacity) (fn _ => emptykey)
+      val keys = SeqBasis.tabulate 5000 (0, capacity) (fn _ => K.empty)
       val packedWeights = ForkJoin.alloc (W.NUM_COMPONENTS * capacity)
       val _ = ForkJoin.parfor 1000 (0, capacity) (fn i =>
         W.unpack_into (W.z, locationOfPack packedWeights i))
     in
-      T {keys = keys, emptykey = emptykey, packedWeights = packedWeights}
+      T {keys = keys, packedWeights = packedWeights}
     end
 
 
   fun capacity (T {keys, ...}) = Array.length keys
 
 
-  fun size (T {keys, emptykey, ...}) =
+  fun size (T {keys, ...}) =
     SeqBasis.reduce 10000 op+ 0 (0, Array.length keys) (fn i =>
-      if K.equal (Array.sub (keys, i), emptykey) then 0 else 1)
+      if K.equal (Array.sub (keys, i), K.empty) then 0 else 1)
 
 
-  fun unsafeViewContents (tab as T {keys, packedWeights, emptykey, ...}) =
+  fun unsafeViewContents (tab as T {keys, packedWeights, ...}) =
     let
       fun makeWeight i =
         W.pack_from (locationOfPack packedWeights i)
 
       fun elem i =
         let val k = Array.sub (keys, i)
-        in if K.equal (k, emptykey) then NONE else SOME (k, makeWeight i)
+        in if K.equal (k, K.empty) then NONE else SOME (k, makeWeight i)
         end
     in
       DelayedSeq.tabulate elem (Array.length keys)
@@ -61,11 +58,11 @@ struct
 
 
   fun insertCombineWeightsLimitProbes {probes = tolerance}
-    (input as T {keys, packedWeights, emptykey}) (x, v) =
+    (input as T {keys, packedWeights}) (x, v) =
     let
       val n = Array.length keys
 
-      fun claimSlotAt i = bcas (keys, i, emptykey, x)
+      fun claimSlotAt i = bcas (keys, i, K.empty, x)
 
       fun putValueAt i =
         W.unpack_atomic_combine_into (v, locationOfPack packedWeights i)
@@ -79,7 +76,7 @@ struct
           let
             val k = Array.sub (keys, i)
           in
-            if K.equal (k, emptykey) then
+            if K.equal (k, K.empty) then
               if claimSlotAt i then putValueAt i else loop i probes
             else if K.equal (k, x) then
               putValueAt i
@@ -97,12 +94,12 @@ struct
     insertCombineWeightsLimitProbes {probes = capacity table} table (x, v)
 
 
-  fun forceInsertUnique (T {keys, packedWeights, emptykey}) (x, v) =
+  fun forceInsertUnique (T {keys, packedWeights}) (x, v) =
     let
       val n = Array.length keys
       val start = (K.hash x) mod n
 
-      fun claimSlotAt i = bcas (keys, i, emptykey, x)
+      fun claimSlotAt i = bcas (keys, i, K.empty, x)
 
       fun putValueAt i =
         W.unpack_into (v, locationOfPack packedWeights i)
@@ -114,7 +111,7 @@ struct
           let
             val k = Array.sub (keys, i)
           in
-            if K.equal (k, emptykey) then
+            if K.equal (k, K.empty) then
               if claimSlotAt i then putValueAt i else loop i
             else if K.equal (k, x) then
               raise DuplicateKey
@@ -129,7 +126,7 @@ struct
     end
 
 
-  fun lookup (T {keys, packedWeights, emptykey, ...}) x =
+  fun lookup (T {keys, packedWeights, ...}) x =
     let
       val n = Array.length keys
       val start = (K.hash x) mod n
@@ -141,7 +138,7 @@ struct
         let
           val k = Array.sub (keys, i)
         in
-          if K.equal (k, emptykey) then NONE
+          if K.equal (k, K.empty) then NONE
           else if K.equal (k, x) then SOME (makeWeight i)
           else loopCheck (i + 1)
         end

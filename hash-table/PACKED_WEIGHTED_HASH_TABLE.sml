@@ -9,7 +9,7 @@ sig
   exception Full
   exception DuplicateKey (* only raised by forceInsertUnique *)
 
-  val make: {capacity: int, emptykey: K.t} -> table
+  val make: {capacity: int} -> table
 
   val size: table -> int
   val capacity: table -> int
