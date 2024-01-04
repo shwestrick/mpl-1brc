@@ -1,6 +1,21 @@
 structure CLA = CommandLineArgs
 
+val noOutput = CLA.parseFlag "no-output"
 val verbose = CLA.parseFlag "verbose"
+val filename = List.hd (CLA.positional ())
+               handle _ => Util.die "missing input filename"
+val showParsed = CLA.parseFlag "check-show-parsed"
+
+(* capacity 20000 should be a reasonable choice according to the spec of
+ * the problem, which says that there will be at most 10000 unique station
+ * names
+ *)
+val capacity = CLA.parseInt "table-capacity" 20000
+
+(* =======================================================================
+ * a few utilities
+ *)
+
 fun vprint s =
   if verbose then print s else ()
 
@@ -14,8 +29,6 @@ fun assert b msg =
 
 (* ======================================================================= *)
 
-val filename = List.hd (CLA.positional ())
-               handle _ => Util.die "missing input filename"
 val _ = vprint ("loading " ^ filename ^ "\n")
 
 val contents: char Seq.t = reportTime "load file" (fn _ =>
@@ -68,8 +81,6 @@ fun getMeasurement (i: index) : measurement =
 (* =========================================================================
  * spot-check: confirm parsed correctly
  *)
-
-val showParsed = CLA.parseFlag "check-show-parsed"
 
 val _ =
   if not showParsed then
@@ -213,12 +224,6 @@ structure T = PackedWeightedHashTable (structure K = Key structure W = Weight)
  * do the main loop
  *)
 
-(* capacity 20000 should be a reasonable choice according to the spec of
- * the problem, which says that there will be at most 10000 unique station
- * names
- *)
-val capacity = CLA.parseInt "table-capacity" 20000
-
 val table = T.make {capacity = capacity}
 
 val _ = reportTime "process entries" (fn _ =>
@@ -245,20 +250,28 @@ val result = reportTime "sort" (fn _ =>
 val _ = vprint
   ("num unique stations: " ^ Int.toString (Seq.length result) ^ "\n")
 
-val _ = print "{"
-val _ = Util.for (0, Seq.length result) (fn i =>
+
+fun output () =
   let
-    val (idx, weight as {min, max, tot, count}) = Seq.nth result i
-    val name = getStationName idx
-    val avg = Real.fromInt tot / Real.fromInt count / 10.0
-    fun fmt r =
-      let val (prefix, r) = if r < 0.0 then ("-", ~r) else ("", r)
-      in prefix ^ Real.fmt (StringCvt.FIX (SOME 1)) r
-      end
+    val _ = print "{"
+    val _ = Util.for (0, Seq.length result) (fn i =>
+      let
+        val (idx, weight as {min, max, tot, count}) = Seq.nth result i
+        val name = getStationName idx
+        val avg = Real.fromInt tot / Real.fromInt count / 10.0
+        fun fmt r =
+          let val (prefix, r) = if r < 0.0 then ("-", ~r) else ("", r)
+          in prefix ^ Real.fmt (StringCvt.FIX (SOME 1)) r
+          end
+      in
+        print
+          (name ^ "=" ^ fmt (Real.fromInt min / 10.0) ^ "/" ^ fmt avg ^ "/"
+           ^ fmt (Real.fromInt max / 10.0));
+        if i < Seq.length result - 1 then print ", " else ()
+      end)
+    val _ = print "}\n"
   in
-    print
-      (name ^ "=" ^ fmt (Real.fromInt min / 10.0) ^ "/" ^ fmt avg ^ "/"
-       ^ fmt (Real.fromInt max / 10.0));
-    if i < Seq.length result - 1 then print ", " else ()
-  end)
-val _ = print "}\n"
+    ()
+  end
+
+val _ = if noOutput then () else output ()
