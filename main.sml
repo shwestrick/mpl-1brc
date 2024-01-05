@@ -1,5 +1,7 @@
 structure CLA = CommandLineArgs
 
+val start_time = Time.now ()
+
 val noOutput = CLA.parseFlag "no-output"
 val verbose = CLA.parseFlag "verbose"
 val filename = List.hd (CLA.positional ())
@@ -304,3 +306,7 @@ fun output () =
   end
 
 val _ = if noOutput then () else output ()
+
+val stop_time = Time.now ()
+val _ = vprint
+  ("\ntotal time: " ^ Time.fmt 4 (Time.- (stop_time, start_time)) ^ "s\n")
