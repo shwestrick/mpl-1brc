@@ -21,6 +21,9 @@ file**. See the
 [1brc GitHub repo](https://github.com/gunnarmorling/1brc) for
 instructions on how to generate it.
 
+Contributions are welcome if anyone wants to help improve performance! Feel
+free to submit PRs. See ideas for performance improvements below. (Not sure
+about any of these, but it would be interesting to try them.)
 
 ## Current results
 
