@@ -41,3 +41,9 @@ total time: 4.1323s
 This result is not directly comparable with the timings reported in the
 competition, because of differences in hardware. (E.g., I'm using a
 much larger number of cores here.)
+
+
+## Potential improvements
+
+- [ ] Work directly on the mmap'ed file instead of loading it into an array first.
+- [ ] Use block-local hash tables to avoid contention? 
