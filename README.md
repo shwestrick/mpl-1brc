@@ -50,6 +50,12 @@ much larger number of cores here.)
 
 - [ ] Work directly on the mmap'ed file instead of loading it into an array first.
 - [ ] Better hash function?
+- [ ] Faster parsing? There are some cool ideas floating around in discussions of other 1brc solutions.
 - [ ] Use block-local hash tables to avoid contention? 
 - [ ] Store the components of the hash table values ("weights" in the code) in SoA style?
 - [ ] Pack the min and max components of the weights into a smaller value? (These don't need nearly as many bits as we're using currently...)
+
+
+At the moment, my guess is that better parsing and hashing would lead to
+the biggest performance improvements. Avoiding the intermediate copy of the
+whole file into an array would also be a big win.
