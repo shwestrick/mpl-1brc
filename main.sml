@@ -12,6 +12,8 @@ val showParsed = CLA.parseFlag "check-show-parsed"
  *)
 val capacity = CLA.parseInt "table-capacity" 20000
 
+val blockSize = CLA.parseInt "block-size" 100000
+
 (* =======================================================================
  * a few utilities
  *)
@@ -34,30 +36,39 @@ val _ = vprint ("loading " ^ filename ^ "\n")
 val contents: char Seq.t = reportTime "load file" (fn _ =>
   ReadFile.contentsSeq filename)
 
-val (numTokens, getTokenRange) = reportTime "tokenize" (fn _ =>
+(* val (numTokens, getTokenRange) = reportTime "tokenize" (fn _ =>
   Tokenize.tokenRanges (fn c => c = #"\n" orelse c = #";") contents)
 
 val _ = assert (numTokens mod 2 = 0) "bad file? should be even number of tokens"
 
 val numEntries = numTokens div 2
-val _ = vprint ("number of entries: " ^ Int.toString numEntries ^ "\n")
+val _ = vprint ("number of entries: " ^ Int.toString numEntries ^ "\n") *)
 
 (* ======================================================================
- * Identify each entry by its line number
+ * Parsing.
  *)
 
 type index = int
 type station_name = string
 type measurement = int
 
-fun getStationName (i: index) : station_name =
-  let val (start, stop) = getTokenRange (2 * i)
-  in CharVector.tabulate (stop - start, fn i => Seq.nth contents (start + i))
+fun findNext c i =
+  if i >= Seq.length contents then NONE
+  else if Seq.nth contents i = c then SOME i
+  else findNext c (i + 1)
+
+fun parseStationName (start: index) : int * station_name =
+  let
+    val stop = valOf (findNext #";" start)
+  in
+    ( stop
+    , CharVector.tabulate (stop - start, fn i => Seq.nth contents (start + i))
+    )
   end
 
-fun getMeasurement (i: index) : measurement =
+fun parseMeasurement (start: index) : (int * measurement) =
   let
-    val (start, stop) = getTokenRange (2 * i + 1)
+    val stop = valOf (findNext #"\n" start)
 
     val (start, isNeg) =
       if Seq.nth contents start = #"-" then (start + 1, true)
@@ -75,23 +86,19 @@ fun getMeasurement (i: index) : measurement =
 
     val x = Util.loop (0, numDigits) 0 (fn (acc, i) => 10 * acc + getDigit i)
   in
-    if isNeg then ~x else x
+    (stop, if isNeg then ~x else x)
   end
 
-(* =========================================================================
- * spot-check: confirm parsed correctly
- *)
 
-val _ =
-  if not showParsed then
-    ()
-  else
-    Util.for (0, numEntries) (fn i =>
-      vprint (getStationName i ^ ";" ^ Int.toString (getMeasurement i) ^ "\n"))
+fun getStationName start =
+  #2 (parseStationName start)
+
+fun getMeasurement start =
+  #2 (parseMeasurement start)
 
 
 (* ==========================================================================
- * define the hash table type
+ * Define the hash table type. We identify entries by their starting index.
  *)
 
 structure Key: KEY =
@@ -110,16 +117,14 @@ struct
       false
     else
       let
-        val (start1, stop1) = getTokenRange (2 * i1)
-        val (start2, stop2) = getTokenRange (2 * i2)
-
         fun check_from (j1, j2) =
-          j1 = stop1
-          orelse
-          ((Seq.nth contents j1 = Seq.nth contents j2)
-           andalso check_from (j1 + 1, j2 + 1))
+          if Seq.nth contents j1 = Seq.nth contents j2 then
+            if Seq.nth contents j1 = #";" then true
+            else check_from (j1 + 1, j2 + 1)
+          else
+            false
       in
-        (stop1 - start1) = (stop2 - start2) andalso check_from (start1, start2)
+        check_from (i1, i2)
       end
 
   fun hashStr (numChars, getChar) =
@@ -136,9 +141,9 @@ struct
       Util.hash32_2 result
     end
 
-  fun hash i =
+  fun hash start =
     let
-      val (start, stop) = getTokenRange (2 * i)
+      val stop = valOf (findNext #";" start)
     in
       Word32.toIntX (hashStr (stop - start, fn i =>
         Seq.nth contents (start + i)))
@@ -219,20 +224,44 @@ end
 
 structure T = PackedWeightedHashTable (structure K = Key structure W = Weight)
 
-
 (* ==========================================================================
- * do the main loop
+ * do the main loop. split the input into blocks and parse each block
+ * independently.
  *)
 
 val table = T.make {capacity = capacity}
 
-val _ = reportTime "process entries" (fn _ =>
-  ForkJoin.parfor 100 (0, numEntries) (fn i =>
+fun loop cursor stop =
+  if cursor >= stop then
+    ()
+  else
     let
-      val m = getMeasurement i
+      val start = cursor
+      val cursor = valOf (findNext #";" cursor)
+      val cursor = cursor + 1 (* get past the ";" *)
+      val (cursor, m) = parseMeasurement cursor
+      val cursor = cursor + 1 (* get past the newline character *)
+
       val weight = {min = m, max = m, tot = m, count = 1}
     in
-      T.insertCombineWeights table (i, weight)
+      T.insertCombineWeights table (start, weight);
+      loop cursor stop
+    end
+
+fun findLineStart i =
+  case findNext #"\n" i of
+    SOME i => i + 1
+  | NONE => Seq.length contents
+
+val numBlocks = Util.ceilDiv (Seq.length contents) blockSize
+
+val _ = reportTime "process entries" (fn _ =>
+  ForkJoin.parfor 1 (0, numBlocks) (fn b =>
+    let
+      val start = findLineStart (b * blockSize)
+      val stop = findLineStart ((b + 1) * blockSize)
+    in
+      loop start stop
     end))
 
 val compacted = reportTime "compact" (fn _ =>
