@@ -47,3 +47,5 @@ much larger number of cores here.)
 
 - [ ] Work directly on the mmap'ed file instead of loading it into an array first.
 - [ ] Use block-local hash tables to avoid contention? 
+- [ ] Store the components of the hash table values ("weights" in the code) in SoA style?
+- [ ] Pack the min and max components of the weights into a smaller value? (These don't need nearly as many bits as we're using currently...)
