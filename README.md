@@ -57,5 +57,6 @@ much larger number of cores here.)
 
 
 At the moment, my guess is that better parsing and hashing would lead to
-the biggest performance improvements. Avoiding the intermediate copy of the
-whole file into an array would also be a big win.
+the biggest performance improvements. (We're getting great scalability, but
+single-core performance is a little slow.) I suspect also that avoiding
+copying the whole file into an array would be a big win.
