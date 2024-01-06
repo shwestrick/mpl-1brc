@@ -35,20 +35,17 @@ fun assert b msg =
 
 val _ = vprint ("loading " ^ filename ^ "\n")
 
-val contents: char Seq.t = reportTime "load file" (fn _ =>
-  ReadFile.contentsSeq filename)
-
-(* val (numTokens, getTokenRange) = reportTime "tokenize" (fn _ =>
-  Tokenize.tokenRanges (fn c => c = #"\n" orelse c = #";") contents)
-
-val _ = assert (numTokens mod 2 = 0) "bad file? should be even number of tokens"
-
-val numEntries = numTokens div 2
-val _ = vprint ("number of entries: " ^ Int.toString numEntries ^ "\n") *)
+val contents: Word8.word Seq.t = reportTime "load file" (fn _ =>
+  ReadFile.contentsBinSeq filename)
 
 (* ======================================================================
  * Parsing.
  *)
+
+val semicolon_id: Word8.word = 0wx3B (* #";" *)
+val newline_id: Word8.word = 0wxA (* #"\n" *)
+val dash_id: Word8.word = 0wx2D (* #"-" *)
+val zero_id: Word8.word = 0wx30 (* #"0" *)
 
 type index = int
 type station_name = string
@@ -61,19 +58,20 @@ fun findNext c i =
 
 fun parseStationName (start: index) : int * station_name =
   let
-    val stop = valOf (findNext #";" start)
+    val stop = valOf (findNext semicolon_id start)
   in
     ( stop
-    , CharVector.tabulate (stop - start, fn i => Seq.nth contents (start + i))
+    , CharVector.tabulate (stop - start, fn i =>
+        Char.chr (Word8.toInt (Seq.nth contents (start + i))))
     )
   end
 
 fun parseMeasurement (start: index) : (int * measurement) =
   let
-    val stop = valOf (findNext #"\n" start)
+    val stop = valOf (findNext newline_id start)
 
     val (start, isNeg) =
-      if Seq.nth contents start = #"-" then (start + 1, true)
+      if Seq.nth contents start = dash_id then (start + 1, true)
       else (start, false)
 
     val numDigits = stop - start - 1 (* exclude the dot *)
@@ -83,7 +81,7 @@ fun parseMeasurement (start: index) : (int * measurement) =
           if i < numDigits - 1 then Seq.nth contents (start + i)
           else Seq.nth contents (start + i + 1)
       in
-        Char.ord c - Char.ord #"0"
+        Word8.toInt (c - zero_id)
       end
 
     val x = Util.loop (0, numDigits) 0 (fn (acc, i) => 10 * acc + getDigit i)
@@ -121,7 +119,7 @@ struct
       let
         fun check_from (j1, j2) =
           if Seq.nth contents j1 = Seq.nth contents j2 then
-            if Seq.nth contents j1 = #";" then true
+            if Seq.nth contents j1 = semicolon_id then true
             else check_from (j1 + 1, j2 + 1)
           else
             false
@@ -129,26 +127,24 @@ struct
         check_from (i1, i2)
       end
 
-  fun hashStr (numChars, getChar) =
+  fun hashStr (start, stop) =
     let
       (* just cap it for long strings *)
-      val n = Int.min (5, numChars)
+      val stop = Int.min (stop, start + 8)
       fun c i =
-        Word32.fromInt (Char.ord (getChar i))
-      fun loop h i =
-        if i >= n then h else loop (Word32.+ (Word32.* (h, 0w31), c i)) (i + 1)
+        Word8.toLarge (Seq.nth contents i)
 
-      val result = loop 0w7 0
+      val result = Util.loop (start + 1, stop) (c start) (fn (acc, i) =>
+        LargeWord.orb (LargeWord.<< (acc, 0w8), c i))
+
     in
-      Util.hash32_2 result
+      (*Util.hash64_2*)
+      result
     end
 
   fun hash start =
-    let
-      val stop = valOf (findNext #";" start)
-    in
-      Word32.toIntX (hashStr (stop - start, fn i =>
-        Seq.nth contents (start + i)))
+    let val stop = valOf (findNext semicolon_id start)
+    in Word64.toIntX (hashStr (start, stop))
     end
 end
 
@@ -239,7 +235,7 @@ fun loop cursor stop =
   else
     let
       val start = cursor
-      val cursor = valOf (findNext #";" cursor)
+      val cursor = valOf (findNext semicolon_id cursor)
       val cursor = cursor + 1 (* get past the ";" *)
       val (cursor, m) = parseMeasurement cursor
       val cursor = cursor + 1 (* get past the newline character *)
@@ -251,7 +247,7 @@ fun loop cursor stop =
     end
 
 fun findLineStart i =
-  case findNext #"\n" i of
+  case findNext newline_id i of
     SOME i => i + 1
   | NONE => Seq.length contents
 
