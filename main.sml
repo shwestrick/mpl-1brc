@@ -13,7 +13,7 @@ val noBoundsChecks = CLA.parseFlag "unsafe-no-bounds-checks"
  * the problem, which says that there will be at most 10000 unique station
  * names
  *)
-val capacity = CLA.parseInt "table-capacity" 20000
+val capacity = CLA.parseInt "table-capacity" 19997
 
 val blockSize = CLA.parseInt "block-size" 100000
 
@@ -163,6 +163,14 @@ struct
 
     val z: pack =
       {min = valOf Int.maxInt, max = valOf Int.minInt, tot = 0, count = 0}
+
+
+    fun combine (p1: pack, p2: pack) =
+      { min = Int.min (#min p1, #min p2)
+      , max = Int.max (#max p1, #max p2)
+      , tot = #tot p1 + #tot p2
+      , count = #count p1 + #count p2
+      }
 
 
     fun unpack_into ({min, max, tot, count}: pack, output) =

@@ -15,17 +15,30 @@ struct
   type table = t
 
 
-  fun locationOfPack packedWeights i =
+  val contentionFactor = CommandLineArgs.parseInt "contention-factor" 8
+
+  fun shard () =
+    MLton.Parallel.processorNumber () mod contentionFactor
+
+  (* each pack is split into two locations, to reduce contention
+   *   0 <= j < contentionFactor
+   *)
+  fun locationOfPack capacity packedWeights i j =
     ArraySlice.slice
-      (packedWeights, W.NUM_COMPONENTS * i, SOME W.NUM_COMPONENTS)
+      ( packedWeights
+      , W.NUM_COMPONENTS * (capacity * j + i)
+      , SOME W.NUM_COMPONENTS
+      )
 
 
   fun make {capacity} =
     let
       val keys = SeqBasis.tabulate 5000 (0, capacity) (fn _ => K.empty)
-      val packedWeights = ForkJoin.alloc (W.NUM_COMPONENTS * capacity)
+      val packedWeights = ForkJoin.alloc
+        (contentionFactor * W.NUM_COMPONENTS * capacity)
       val _ = ForkJoin.parfor 1000 (0, capacity) (fn i =>
-        W.unpack_into (W.z, locationOfPack packedWeights i))
+        Util.for (0, contentionFactor) (fn j =>
+          W.unpack_into (W.z, locationOfPack capacity packedWeights i j)))
     in
       T {keys = keys, packedWeights = packedWeights}
     end
@@ -41,8 +54,10 @@ struct
 
   fun unsafeViewContents (tab as T {keys, packedWeights, ...}) =
     let
+      val capacity = Array.length keys
       fun makeWeight i =
-        W.pack_from (locationOfPack packedWeights i)
+        SeqBasis.foldl W.combine W.z (0, contentionFactor) (fn j =>
+          W.pack_from (locationOfPack capacity packedWeights i j))
 
       fun elem i =
         let val k = Array.sub (keys, i)
@@ -64,10 +79,12 @@ struct
       (* val _ = print
         ("insertCombineWeightsLimitProbes capacity=" ^ Int.toString n ^ "\n") *)
 
+      val j = shard ()
+
       fun claimSlotAt i = bcas (keys, i, K.empty, x)
 
       fun putValueAt i =
-        W.unpack_atomic_combine_into (v, locationOfPack packedWeights i)
+        W.unpack_atomic_combine_into (v, locationOfPack n packedWeights i j)
 
       fun loop i probes =
         if probes >= tolerance then
@@ -103,10 +120,12 @@ struct
       val n = Array.length keys
       val start = (K.hash x) mod n
 
+      val j = shard ()
+
       fun claimSlotAt i = bcas (keys, i, K.empty, x)
 
       fun putValueAt i =
-        W.unpack_into (v, locationOfPack packedWeights i)
+        W.unpack_into (v, locationOfPack n packedWeights i j)
 
       fun loop i =
         if i >= n then
@@ -136,7 +155,8 @@ struct
       val start = (K.hash x) mod n
 
       fun makeWeight i =
-        W.pack_from (locationOfPack packedWeights i)
+        SeqBasis.foldl W.combine W.z (0, contentionFactor) (fn j =>
+          W.pack_from (locationOfPack n packedWeights i j))
 
       fun loop i =
         let
