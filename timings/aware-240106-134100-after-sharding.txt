@@ -1,0 +1,46 @@
+$ taskset --cpu-list 1-4,73-76 ./main @mpl procs 8 -- /usr3/data/1brc/measurements.txt --verbose  --unsafe-no-bounds-checks
+loading /usr3/data/1brc/measurements.txt
+load file: 3.0638s
+process entries: 22.8012s
+compact: 0.0002s
+sort: 0.0015s
+num unique stations: 413
+{Abha=-30.8/18.0/66.8, Abidjan=-24.4/26.0/78.0, Abéché=-21.7/29.4/79.4, ...
+
+total time: 25.8734s
+
+
+$ taskset --cpu-list 1-4,73-76 ./main @mpl procs 8 -- /usr3/data/1brc/measurements.txt --verbose
+loading /usr3/data/1brc/measurements.txt
+load file: 3.0487s
+process entries: 25.4010s
+compact: 0.0002s
+sort: 0.0014s
+num unique stations: 413
+{Abha=-30.8/18.0/66.8, Abidjan=-24.4/26.0/78.0, Abéché=-21.7/29.4/79.4, ...
+
+total time: 28.4573s
+
+
+$ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose
+loading /usr3/data/1brc/measurements.txt
+load file: 1.5633s
+process entries: 1.8735s
+compact: 0.0004s
+sort: 0.0021s
+num unique stations: 413
+{Abha=-30.8/18.0/66.8, Abidjan=-24.4/26.0/78.0, Abéché=-21.7/29.4/79.4, ...
+
+total time: 3.4494s
+
+
+$ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose --unsafe-no-bounds-checks
+loading /usr3/data/1brc/measurements.txt
+load file: 1.5652s
+process entries: 1.7327s
+compact: 0.0003s
+sort: 0.0018s
+num unique stations: 413
+{Abha=-30.8/18.0/66.8, Abidjan=-24.4/26.0/78.0, Abéché=-21.7/29.4/79.4, ...
+
+total time: 3.3117s

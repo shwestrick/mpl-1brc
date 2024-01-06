@@ -45,7 +45,7 @@ total time: 3.3117s
 
 And, with **bounds checking enabled**:
 ```
-→ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose
+$ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose
 loading /usr3/data/1brc/measurements.txt
 load file: 1.5633s
 process entries: 1.8735s
