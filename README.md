@@ -12,7 +12,7 @@ $ git clone https://github.com/shwestrick/mpl-1brc
 $ cd mpl-1brc
 $ smlpkg sync
 $ make
-$ ./main @mpl procs 8 -- data/1M.txt   # example data set of 1 million measurements
+$ ./main @mpl procs 8 -- data/1M.txt --verbose   # run on example data set of 1 million measurements
 ```
 
 The above command uses an included `data/1M.txt` input file which has 1 million
@@ -31,30 +31,18 @@ Here are my current results on 72 cores (144 hyperthreads).
 
 With **bounds checking disabled**:
 ```
-$ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose --unsafe-no-bounds-checks
-loading /usr3/data/1brc/measurements.txt
-load file: 1.5652s
-process entries: 1.7327s
-compact: 0.0003s
-sort: 0.0018s
-num unique stations: 413
-{Abha=-30.8/18.0/66.8, Abidjan=-24.4/26.0/78.0, Abéché=-21.7/29.4/79.4, ...
-
-total time: 3.3117s
+$ hyperfine --warmup 1 './main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --unsafe-no-bounds-checks'
+Benchmark 1: ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --unsafe-no-bounds-checks
+  Time (mean ± σ):      2.597 s ±  0.015 s    [User: 362.137 s, System: 2.411 s]
+  Range (min … max):    2.577 s …  2.616 s    10 runs
 ```
 
 And, with **bounds checking enabled**:
 ```
-$ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose
-loading /usr3/data/1brc/measurements.txt
-load file: 1.5633s
-process entries: 1.8735s
-compact: 0.0004s
-sort: 0.0021s
-num unique stations: 413
-{Abha=-30.8/18.0/66.8, Abidjan=-24.4/26.0/78.0, Abéché=-21.7/29.4/79.4, ...
-
-total time: 3.4494s
+$ hyperfine --warmup 1 './main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt'
+Benchmark 1: ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt
+  Time (mean ± σ):      2.745 s ±  0.082 s    [User: 382.863 s, System: 2.664 s]
+  Range (min … max):    2.685 s …  2.934 s    10 runs
 ```
 
 These timings are not directly comparable with the timings reported in the
@@ -64,7 +52,7 @@ much larger number of cores here.)
 
 ## Potential improvements
 
-- [ ] Work directly on the mmap'ed file instead of loading it into an array first.
+- [x] Work directly on the mmap'ed file instead of loading it into an array first.
 - [ ] Better hash function?
 - [ ] Faster parsing? There are some cool ideas floating around in discussions of other 1brc solutions.
 - [ ] Use block-local hash tables to avoid contention? 
@@ -76,5 +64,8 @@ much larger number of cores here.)
 
 At the moment, my guess is that better parsing and hashing would lead to
 the biggest performance improvements. (We're getting great scalability, but
-single-core performance is a little slow.) I suspect also that avoiding
-copying the whole file into an array would be a big win.
+single-core performance is a little slow.)
+
+
+~~I suspect also that avoiding
+copying the whole file into an array would be a big win.~~ Done! Got a ~20% improvement.

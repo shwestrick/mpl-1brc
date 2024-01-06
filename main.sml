@@ -14,7 +14,7 @@ val noBoundsChecks = CLA.parseFlag "unsafe-no-bounds-checks"
  *)
 val capacity = CLA.parseInt "table-capacity" 19997
 
-val blockSize = CLA.parseInt "block-size" 100000
+val blockSize = CLA.parseInt "block-size" 1000000
 val bufferSize = CLA.parseInt "buffer-size" 1000
 val contentionFactor = CLA.parseInt "contention-factor" 8
 
