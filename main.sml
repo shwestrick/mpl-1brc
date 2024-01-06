@@ -426,6 +426,8 @@ val numBytes = MPL.File.size file
 
 fun getByte i = MPL.File.readWord8 file i
 
+fun unsafeGetByte i = MPL.File.unsafeReadWord8 file i
+
 fun getBytes {offset, buffer} =
   let
     val count = Int.max (0, Int.min (Array.length buffer, numBytes - offset))
@@ -453,7 +455,7 @@ structure MainNoBoundsChecks =
   Main
     (struct
        val numBytes = numBytes
-       val getByte = getByte
+       val getByte = unsafeGetByte
        val getBytes = getBytes
        val arraySub = Unsafe.Array.sub
      end)

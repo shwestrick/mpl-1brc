@@ -1,10 +1,10 @@
 $ hyperfine --warmup 1 './main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --unsafe-no-bounds-checks'
 Benchmark 1: ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --unsafe-no-bounds-checks
-  Time (mean ± σ):      2.597 s ±  0.015 s    [User: 362.137 s, System: 2.411 s]
-  Range (min … max):    2.577 s …  2.616 s    10 runs
+  Time (mean ± σ):      2.408 s ±  0.011 s    [User: 334.217 s, System: 2.892 s]
+  Range (min … max):    2.390 s …  2.422 s    10 runs
 
 
 $ hyperfine --warmup 1 './main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt'
 Benchmark 1: ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt
-  Time (mean ± σ):      2.745 s ±  0.082 s    [User: 382.863 s, System: 2.664 s]
-  Range (min … max):    2.685 s …  2.934 s    10 runs
+  Time (mean ± σ):      2.655 s ±  0.057 s    [User: 370.180 s, System: 2.765 s]
+  Range (min … max):    2.599 s …  2.772 s    10 runs
