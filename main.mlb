@@ -1,6 +1,7 @@
 $(SML_LIB)/basis/basis.mlb
 $(SML_LIB)/basis/fork-join.mlb
 $(SML_LIB)/basis/unsafe.mlb
+$(SML_LIB)/basis/mpl.mlb
 lib/github.com/mpllang/mpllib/sources.mpl.mlb
 hash-table/sources.mlb
 main.sml

@@ -1,4 +1,5 @@
-functor PackedWeightedHashTable (structure K: KEY structure W: PACKED_WEIGHT):
+functor PackedWeightedHashTable
+  (structure K: KEY structure W: PACKED_WEIGHT val contentionFactor: int):
   PACKED_WEIGHTED_HASH_TABLE =
 struct
 
@@ -13,9 +14,6 @@ struct
   exception DuplicateKey
 
   type table = t
-
-
-  val contentionFactor = CommandLineArgs.parseInt "contention-factor" 8
 
   fun shard () =
     MLton.Parallel.processorNumber () mod contentionFactor

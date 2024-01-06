@@ -6,7 +6,6 @@ val noOutput = CLA.parseFlag "no-output"
 val verbose = CLA.parseFlag "verbose"
 val filename = List.hd (CLA.positional ())
                handle _ => Util.die "missing input filename"
-val showParsed = CLA.parseFlag "check-show-parsed"
 val noBoundsChecks = CLA.parseFlag "unsafe-no-bounds-checks"
 
 (* capacity 20000 should be a reasonable choice according to the spec of
@@ -16,6 +15,8 @@ val noBoundsChecks = CLA.parseFlag "unsafe-no-bounds-checks"
 val capacity = CLA.parseInt "table-capacity" 19997
 
 val blockSize = CLA.parseInt "block-size" 100000
+val bufferSize = CLA.parseInt "buffer-size" 1000
+val contentionFactor = CLA.parseInt "contention-factor" 8
 
 (* =======================================================================
  * a few utilities
@@ -34,12 +35,30 @@ fun assert b msg =
 
 (* ======================================================================== *)
 
-(* By parameterizing the whole thing by {numBytes, getBytes}, we can
- * easily enable/disable bounds checking by passing in two different versions
- * of `getByte`. See bottom of file where we instantiate Main(...).
- *)
-functor Main (val numBytes: int val getByte: int -> Word8.word) =
+fun bb b =
+  if b then "yes" else "no"
+
+val _ = vprint ("no-output?               " ^ bb noOutput ^ "\n")
+val _ = vprint ("unsafe-no-bounds-checks? " ^ bb noBoundsChecks ^ "\n")
+val _ = vprint ("table-capacity           " ^ Int.toString capacity ^ "\n")
+val _ = vprint ("block-size               " ^ Int.toString blockSize ^ "\n")
+val _ = vprint ("buffer-size              " ^ Int.toString bufferSize ^ "\n")
+val _ = vprint
+  ("contention-factor        " ^ Int.toString contentionFactor ^ "\n")
+
+(* ======================================================================== *)
+
+functor Main
+  (Args:
+   sig
+     val numBytes: int
+     val getByte: int -> Word8.word
+     val getBytes: {offset: int, buffer: Word8.word array} -> int
+     val arraySub: 'a array * int -> 'a
+   end) =
 struct
+
+  open Args
 
   (* ======================================================================
    * Parsing.
@@ -49,15 +68,82 @@ struct
   val newline_id: Word8.word = 0wxA (* #"\n" *)
   val dash_id: Word8.word = 0wx2D (* #"-" *)
   val zero_id: Word8.word = 0wx30 (* #"0" *)
+  val dot_id: Word8.word = 0wx2E (* #"." *)
 
   type index = int
   type station_name = string
   type measurement = int
 
+
+  datatype buffer = Buffer of {buffer: Word8.word array, offset: int, size: int}
+
+
+  fun newBuffer capacity =
+    Buffer {buffer = ForkJoin.alloc capacity, offset = 0, size = 0}
+
+
+  fun fillBuffer (Buffer {buffer, ...}) start =
+    let val size' = getBytes {offset = start, buffer = buffer}
+    in Buffer {buffer = buffer, offset = start, size = size'}
+    end
+
+
+  fun readBufferByte (b as Buffer {buffer, offset, size}) i =
+    if i >= offset andalso i < offset + size then
+      (b, arraySub (buffer, i - offset))
+    else
+      readBufferByte (fillBuffer b i) i
+
+
+  fun bufferLoop (Buffer {buffer, offset, size}) {start, continue, z, func} =
+    let
+      fun finish offset bufferSize acc i =
+        ( Buffer {buffer = buffer, size = bufferSize, offset = offset}
+        , offset + i
+        , acc
+        )
+
+      fun loop offset bufferSize acc i =
+        if i < bufferSize then
+          let
+            val byte = arraySub (buffer, i)
+          in
+            if continue byte then
+              loop offset bufferSize (func (acc, byte)) (i + 1)
+            else
+              finish offset bufferSize acc i
+          end
+        else if offset + i >= numBytes then
+          finish offset bufferSize acc i
+        else
+          let
+            val offset' = offset + bufferSize
+            val bufferSize' = getBytes {offset = offset', buffer = buffer}
+          in
+            loop offset' bufferSize' acc 0
+          end
+    in
+      if start < offset orelse start >= offset + size then
+        (* this will immediately fill the buffer *)
+        loop start 0 z 0
+      else
+        (* can reuse some of the existing buffer *)
+        loop offset size z (start - offset)
+    end
+
+
+  fun findNextBuffered buffer c i =
+    let
+      val (buffer, position, ()) = bufferLoop buffer
+        {start = i, continue = fn byte => byte <> c, z = (), func = fn _ => ()}
+    in
+      (buffer, if position >= numBytes then NONE else SOME position)
+    end
+
+
   fun findNext c i =
-    if i >= numBytes then NONE
-    else if getByte i = c then SOME i
-    else findNext c (i + 1)
+    #2 (findNextBuffered (newBuffer 10) c i)
+
 
   fun parseStationName (start: index) : int * station_name =
     let
@@ -69,34 +155,27 @@ struct
       )
     end
 
-  fun parseMeasurement (start: index) : (int * measurement) =
+
+  fun parseMeasurement buffer (start: index) : (buffer * int * measurement) =
     let
-      val stop = valOf (findNext newline_id start)
-
+      val (buffer, firstByte) = readBufferByte buffer start
       val (start, isNeg) =
-        if getByte start = dash_id then (start + 1, true) else (start, false)
-
-      val numDigits = stop - start - 1 (* exclude the dot *)
-      fun getDigit i =
-        let
-          val c =
-            if i < numDigits - 1 then getByte (start + i)
-            else getByte (start + i + 1)
-        in
-          Word8.toInt (c - zero_id)
-        end
-
-      val x = Util.loop (0, numDigits) 0 (fn (acc, i) => 10 * acc + getDigit i)
+        if firstByte = dash_id then (start + 1, true) else (start, false)
+      val (buffer, stop, x) = bufferLoop buffer
+        { start = start
+        , continue = fn byte => byte <> newline_id
+        , z = 0
+        , func = fn (acc, byte) =>
+            if byte = dot_id then acc
+            else 10 * acc + (Word8.toInt (byte - zero_id))
+        }
     in
-      (stop, if isNeg then ~x else x)
+      (buffer, stop, if isNeg then ~x else x)
     end
 
 
   fun getStationName start =
     #2 (parseStationName start)
-
-  fun getMeasurement start =
-    #2 (parseMeasurement start)
 
 
   (* ==========================================================================
@@ -198,7 +277,7 @@ struct
               end
           end
       in
-        loop (Array.sub (arr, i))
+        loop (arraySub (arr, i))
       end
 
 
@@ -232,7 +311,11 @@ struct
   end
 
 
-  structure T = PackedWeightedHashTable (structure K = Key structure W = Weight)
+  structure T =
+    PackedWeightedHashTable
+      (structure K = Key
+       structure W = Weight
+       val contentionFactor = contentionFactor)
 
   (* ==========================================================================
    * do the main loop. split the input into blocks and parse each block
@@ -243,21 +326,21 @@ struct
     let
       val table = T.make {capacity = capacity}
 
-      fun loop cursor stop =
+      fun loop buffer cursor stop =
         if cursor >= stop then
           ()
         else
           let
             val start = cursor
-            val cursor = valOf (findNext semicolon_id cursor)
+            val (buffer, cursor) = findNextBuffered buffer semicolon_id cursor
+            val cursor = valOf cursor
             val cursor = cursor + 1 (* get past the ";" *)
-            val (cursor, m) = parseMeasurement cursor
+            val (buffer, cursor, m) = parseMeasurement buffer cursor
             val cursor = cursor + 1 (* get past the newline character *)
-
             val weight = {min = m, max = m, tot = m, count = 1}
           in
             T.insertCombineWeights table (start, weight);
-            loop cursor stop
+            loop buffer cursor stop
           end
 
       fun findLineStart i =
@@ -273,7 +356,7 @@ struct
             val start = findLineStart (b * blockSize)
             val stop = findLineStart ((b + 1) * blockSize)
           in
-            loop start stop
+            loop (newBuffer bufferSize) start stop
           end))
 
       val compacted = reportTime "compact" (fn _ =>
@@ -326,35 +409,61 @@ end
 
 (* ======================================================================= *)
 
-val _ = vprint ("loading " ^ filename ^ "\n")
+(* val _ = vprint ("loading " ^ filename ^ "\n") *)
 
-val contents: Word8.word Seq.t = reportTime "load file" (fn _ =>
+(* val contents: Word8.word Seq.t = reportTime "load file" (fn _ =>
   ReadFile.contentsBinSeq filename)
 
 val contents =
   let val (arr, i, _) = ArraySlice.base contents
   in if i = 0 then arr else Util.die ("whoops! strip away Seq failed")
-  end
+  end *)
 
+
+val file = MPL.File.openFile filename
+
+val numBytes = MPL.File.size file
+
+fun getByte i = MPL.File.readWord8 file i
+
+fun getBytes {offset, buffer} =
+  let
+    val count = Int.max (0, Int.min (Array.length buffer, numBytes - offset))
+    (* val _ = print
+      ("getBytes " ^ Int.toString offset ^ " "
+       ^ Int.toString (Array.length buffer) ^ " " ^ Int.toString count ^ "\n") *)
+    val buffer = ArraySlice.slice (buffer, 0, SOME count)
+  in
+    MPL.File.readWord8s file offset buffer;
+    count
+  end
 
 (* ======================================================================= *)
 
-
 structure MainWithBoundsChecks =
   Main
-    (val numBytes = Array.length contents
-     fun getByte i = Array.sub (contents, i))
+    (struct
+       val numBytes = numBytes
+       val getByte = getByte
+       val getBytes = getBytes
+       val arraySub = Array.sub
+     end)
+
 structure MainNoBoundsChecks =
   Main
-    (val numBytes = Array.length contents
-     fun getByte i = Unsafe.Array.sub (contents, i))
-
+    (struct
+       val numBytes = numBytes
+       val getByte = getByte
+       val getBytes = getBytes
+       val arraySub = Unsafe.Array.sub
+     end)
 
 val _ =
   if noBoundsChecks then MainNoBoundsChecks.main ()
   else MainWithBoundsChecks.main ()
 
 
+val _ = MPL.File.closeFile file
 val stop_time = Time.now ()
 val _ = vprint
   ("\ntotal time: " ^ Time.fmt 4 (Time.- (stop_time, start_time)) ^ "s\n")
