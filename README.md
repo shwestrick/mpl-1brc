@@ -27,21 +27,37 @@ about any of these, but it would be interesting to try them.)
 
 ## Current results
 
-Here are my current results on 72 cores (144 hyperthreads):
+Here are my current results on 72 cores (144 hyperthreads).
+
+With **bounds checking disabled**:
 ```
-$ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose
+$ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose --unsafe-no-bounds-checks
 loading /usr3/data/1brc/measurements.txt
-load file: 1.4936s
-process entries: 2.6253s
+load file: 1.5652s
+process entries: 1.7327s
 compact: 0.0003s
-sort: 0.0022s
+sort: 0.0018s
 num unique stations: 413
-{Abha=-30.8/18.0/66.8, Abidjan=-24.4/26.0/78.0, Abéché=-21.7/29.4/79.4, ... 
+{Abha=-30.8/18.0/66.8, Abidjan=-24.4/26.0/78.0, Abéché=-21.7/29.4/79.4, ...
 
-total time: 4.1323s
+total time: 3.3117s
 ```
 
-This result is not directly comparable with the timings reported in the
+And, with **bounds checking enabled**:
+```
+→ ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --verbose
+loading /usr3/data/1brc/measurements.txt
+load file: 1.5633s
+process entries: 1.8735s
+compact: 0.0004s
+sort: 0.0021s
+num unique stations: 413
+{Abha=-30.8/18.0/66.8, Abidjan=-24.4/26.0/78.0, Abéché=-21.7/29.4/79.4, ...
+
+total time: 3.4494s
+```
+
+These timings are not directly comparable with the timings reported in the
 competition, because of differences in hardware. (E.g., I'm using a
 much larger number of cores here.)
 
@@ -52,6 +68,8 @@ much larger number of cores here.)
 - [ ] Better hash function?
 - [ ] Faster parsing? There are some cool ideas floating around in discussions of other 1brc solutions.
 - [ ] Use block-local hash tables to avoid contention? 
+- [x] Shard the hash table to avoid contention
+- [x] Option for disabling bounds checks
 - [ ] Store the components of the hash table values ("weights" in the code) in SoA style?
 - [ ] Pack the min and max components of the weights into a smaller value? (These don't need nearly as many bits as we're using currently...)
 
