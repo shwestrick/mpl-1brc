@@ -127,24 +127,25 @@ struct
         check_from (i1, i2)
       end
 
-  fun hashStr (start, stop) =
-    let
-      (* just cap it for long strings *)
-      val stop = Int.min (stop, start + 8)
-      fun c i =
-        Word8.toLarge (Seq.nth contents i)
-
-      val result = Util.loop (start + 1, stop) (c start) (fn (acc, i) =>
-        LargeWord.orb (LargeWord.<< (acc, 0w8), c i))
-
-    in
-      (*Util.hash64_2*)
-      result
-    end
-
   fun hash start =
-    let val stop = valOf (findNext semicolon_id start)
-    in Word64.toIntX (hashStr (start, stop))
+    let
+      val definitely_stop = start + 8
+
+      fun loop acc cursor =
+        let
+          val x = Seq.nth contents cursor
+        in
+          if cursor >= definitely_stop orelse x = semicolon_id then
+            acc
+          else
+            loop (LargeWord.orb (LargeWord.<< (acc, 0w8), Word8.toLarge x))
+              (cursor + 1)
+        end
+
+      val result = loop (Word8.toLarge (Seq.nth contents start)) (start + 1)
+    (* val result = Util.hash64_2 result *)
+    in
+      Word64.toIntX result
     end
 end
 
