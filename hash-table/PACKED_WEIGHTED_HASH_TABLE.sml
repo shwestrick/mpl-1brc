@@ -14,13 +14,7 @@ sig
   val size: table -> int
   val capacity: table -> int
 
-  val insertCombineWeights: table -> K.t * W.t -> unit
-  val insertCombineWeightsLimitProbes: {probes: int}
-                                       -> table
-                                       -> K.t * W.t
-                                       -> unit
-
-  val forceInsertUnique: table -> K.t * W.t -> unit
+  val insertCombineWeightsKnownHash: table -> K.t * W.t -> {hash: int} -> unit
 
   (* not safe for concurrency with insertions *)
   val lookup: table -> K.t -> W.t option

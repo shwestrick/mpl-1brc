@@ -182,7 +182,11 @@ struct
    * Define the hash table type. We identify entries by their starting index.
    *)
 
-  structure Key: KEY =
+  structure Key:
+  sig
+    include KEY
+    val parseAndHashBuffered: buffer -> int -> buffer * int * int
+  end =
   struct
     type t = index (* int *)
 
@@ -220,7 +224,7 @@ struct
             if cursor >= definitely_stop orelse x = semicolon_id then
               acc
             else
-              loop (LargeWord.orb (LargeWord.<< (acc, 0w8), Word8.toLarge x))
+              loop (LargeWord.xorb (LargeWord.<< (acc, 0w3), Word8.toLarge x))
                 (cursor + 1)
           end
 
@@ -229,6 +233,21 @@ struct
       in
         Word64.toIntX result
       end
+
+
+    fun parseAndHashBuffered buffer start =
+      let
+        val (b, p, h) = bufferLoop buffer
+          { start = start
+          , continue = fn byte => byte <> semicolon_id
+          , z = 0w0
+          , func = fn (acc, byte) =>
+              LargeWord.xorb (LargeWord.<< (acc, 0w3), Word8.toLarge byte)
+          }
+      in
+        (b, p, Word64.toIntX h)
+      end
+
   end
 
 
@@ -332,14 +351,13 @@ struct
         else
           let
             val start = cursor
-            val (buffer, cursor) = findNextBuffered buffer semicolon_id cursor
-            val cursor = valOf cursor
+            val (buffer, cursor, h) = Key.parseAndHashBuffered buffer cursor
             val cursor = cursor + 1 (* get past the ";" *)
             val (buffer, cursor, m) = parseMeasurement buffer cursor
             val cursor = cursor + 1 (* get past the newline character *)
             val weight = {min = m, max = m, tot = m, count = 1}
           in
-            T.insertCombineWeights table (start, weight);
+            T.insertCombineWeightsKnownHash table (start, weight) {hash = h};
             loop buffer cursor stop
           end
 

@@ -70,12 +70,11 @@ struct
     MLton.eq (old, Concurrency.casArray (arr, i) (old, new))
 
 
-  fun insertCombineWeightsLimitProbes {probes = tolerance}
-    (input as T {keys, packedWeights}) (x, v) =
+  fun insertCombineWeightsKnownHash (input as T {keys, packedWeights}) (x, v)
+    {hash = hashval} =
     let
       val n = Array.length keys
-      (* val _ = print
-        ("insertCombineWeightsLimitProbes capacity=" ^ Int.toString n ^ "\n") *)
+      val tolerance = n
 
       val j = shard ()
 
@@ -91,8 +90,6 @@ struct
           loop 0 probes
         else
           let
-            (* val _ = print
-              ("insertCombineWeightsLimitProbes.loop " ^ Int.toString i ^ "\n") *)
             val k = Array.sub (keys, i)
           in
             if K.equal (k, K.empty) then
@@ -103,47 +100,9 @@ struct
               loop (i + 1) (probes + 1)
           end
 
-      val start = (K.hash x) mod (Array.length keys)
+      val start = hashval mod (Array.length keys)
     in
       loop start 0
-    end
-
-
-  fun insertCombineWeights table (x, v) =
-    insertCombineWeightsLimitProbes {probes = capacity table} table (x, v)
-
-
-  fun forceInsertUnique (T {keys, packedWeights}) (x, v) =
-    let
-      val n = Array.length keys
-      val start = (K.hash x) mod n
-
-      val j = shard ()
-
-      fun claimSlotAt i = bcas (keys, i, K.empty, x)
-
-      fun putValueAt i =
-        W.unpack_into (v, locationOfPack n packedWeights i j)
-
-      fun loop i =
-        if i >= n then
-          loop 0
-        else
-          let
-            val k = Array.sub (keys, i)
-          in
-            if K.equal (k, K.empty) then
-              if claimSlotAt i then putValueAt i else loop i
-            else if K.equal (k, x) then
-              raise DuplicateKey
-            else
-              loopNext (i + 1)
-          end
-
-      and loopNext i =
-        if i = start then raise Full else loop i
-    in
-      loop start
     end
 
 
