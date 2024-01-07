@@ -33,16 +33,16 @@ With **bounds checking disabled**:
 ```
 $ hyperfine --warmup 1 './main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --unsafe-no-bounds-checks'
 Benchmark 1: ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt --unsafe-no-bounds-checks
-  Time (mean ± σ):      2.597 s ±  0.015 s    [User: 362.137 s, System: 2.411 s]
-  Range (min … max):    2.577 s …  2.616 s    10 runs
+  Time (mean ± σ):      2.342 s ±  0.020 s    [User: 324.751 s, System: 2.546 s]
+  Range (min … max):    2.317 s …  2.380 s    10 runs
 ```
 
 And, with **bounds checking enabled**:
 ```
 $ hyperfine --warmup 1 './main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt'
 Benchmark 1: ./main @mpl procs 144 set-affinity -- /usr3/data/1brc/measurements.txt
-  Time (mean ± σ):      2.745 s ±  0.082 s    [User: 382.863 s, System: 2.664 s]
-  Range (min … max):    2.685 s …  2.934 s    10 runs
+  Time (mean ± σ):      2.443 s ±  0.018 s    [User: 339.081 s, System: 2.687 s]
+  Range (min … max):    2.417 s …  2.475 s    10 runs
 ```
 
 These timings are not directly comparable with the timings reported in the
