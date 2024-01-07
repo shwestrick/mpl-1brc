@@ -75,74 +75,16 @@ struct
   type measurement = int
 
 
-  datatype buffer = Buffer of {buffer: Word8.word array, offset: int, size: int}
-
-
-  fun newBuffer capacity =
-    Buffer {buffer = ForkJoin.alloc capacity, offset = 0, size = 0}
-
-
-  fun fillBuffer (Buffer {buffer, ...}) start =
-    let val size' = getBytes {offset = start, buffer = buffer}
-    in Buffer {buffer = buffer, offset = start, size = size'}
-    end
-
-
-  fun readBufferByte (b as Buffer {buffer, offset, size}) i =
-    if i >= offset andalso i < offset + size then
-      (b, arraySub (buffer, i - offset))
-    else
-      readBufferByte (fillBuffer b i) i
-
-
-  fun bufferLoop (Buffer {buffer, offset, size}) {start, continue, z, func} =
-    let
-      fun finish offset bufferSize acc i =
-        ( Buffer {buffer = buffer, size = bufferSize, offset = offset}
-        , offset + i
-        , acc
-        )
-
-      fun loop offset bufferSize acc i =
-        if i < bufferSize then
-          let
-            val byte = arraySub (buffer, i)
-          in
-            if continue byte then
-              loop offset bufferSize (func (acc, byte)) (i + 1)
-            else
-              finish offset bufferSize acc i
-          end
-        else if offset + i >= numBytes then
-          finish offset bufferSize acc i
-        else
-          let
-            val offset' = offset + bufferSize
-            val bufferSize' = getBytes {offset = offset', buffer = buffer}
-          in
-            loop offset' bufferSize' acc 0
-          end
-    in
-      if start < offset orelse start >= offset + size then
-        (* this will immediately fill the buffer *)
-        loop start 0 z 0
-      else
-        (* can reuse some of the existing buffer *)
-        loop offset size z (start - offset)
-    end
-
-
-  fun findNextBuffered buffer c i =
-    let
-      val (buffer, position, ()) = bufferLoop buffer
-        {start = i, continue = fn byte => byte <> c, z = (), func = fn _ => ()}
-    in
-      (buffer, if position >= numBytes then NONE else SOME position)
-    end
+  structure B = Buffer(Args)
 
 
   fun findNext c i =
-    #2 (findNextBuffered (newBuffer 10) c i)
+    let
+      val (_, position, ()) = B.loop (B.new {capacity = 10})
+        {start = i, continue = fn byte => byte <> c, z = (), func = fn _ => ()}
+    in
+      if position >= numBytes then NONE else SOME position
+    end
 
 
   fun parseStationName (start: index) : int * station_name =
@@ -156,12 +98,12 @@ struct
     end
 
 
-  fun parseMeasurement buffer (start: index) : (buffer * int * measurement) =
+  fun parseMeasurement buffer (start: index) : (B.t * int * measurement) =
     let
-      val (buffer, firstByte) = readBufferByte buffer start
+      val (buffer, firstByte) = B.readByte buffer start
       val (start, isNeg) =
         if firstByte = dash_id then (start + 1, true) else (start, false)
-      val (buffer, stop, x) = bufferLoop buffer
+      val (buffer, stop, x) = B.loop buffer
         { start = start
         , continue = fn byte => byte <> newline_id
         , z = 0
@@ -185,7 +127,7 @@ struct
   structure Key:
   sig
     include KEY
-    val parseAndHashBuffered: buffer -> int -> buffer * int * int
+    val parseAndHashBuffered: B.t -> int -> B.t * int * int
   end =
   struct
     type t = index (* int *)
@@ -237,7 +179,7 @@ struct
 
     fun parseAndHashBuffered buffer start =
       let
-        val (b, p, h) = bufferLoop buffer
+        val (b, p, h) = B.loop buffer
           { start = start
           , continue = fn byte => byte <> semicolon_id
           , z = 0w0
@@ -374,7 +316,7 @@ struct
             val start = findLineStart (b * blockSize)
             val stop = findLineStart ((b + 1) * blockSize)
           in
-            loop (newBuffer bufferSize) start stop
+            loop (B.new {capacity = bufferSize}) start stop
           end))
 
       val compacted = reportTime "compact" (fn _ =>

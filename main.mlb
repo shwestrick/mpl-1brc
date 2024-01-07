@@ -4,4 +4,5 @@ $(SML_LIB)/basis/unsafe.mlb
 $(SML_LIB)/basis/mpl.mlb
 lib/github.com/mpllang/mpllib/sources.mpl.mlb
 hash-table/sources.mlb
+Buffer.sml
 main.sml
