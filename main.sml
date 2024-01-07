@@ -369,17 +369,6 @@ end
 
 (* ======================================================================= *)
 
-(* val _ = vprint ("loading " ^ filename ^ "\n") *)
-
-(* val contents: Word8.word Seq.t = reportTime "load file" (fn _ =>
-  ReadFile.contentsBinSeq filename)
-
-val contents =
-  let val (arr, i, _) = ArraySlice.base contents
-  in if i = 0 then arr else Util.die ("whoops! strip away Seq failed")
-  end *)
-
-
 val file = MPL.File.openFile filename
 
 val numBytes = MPL.File.size file
