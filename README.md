@@ -49,8 +49,29 @@ These timings are not directly comparable with the timings reported in the
 competition, because of differences in hardware. (E.g., I'm using a
 much larger number of cores here.)
 
+## Key optimizations
 
-## Potential improvements
+I ended up making four key optimizations to improve performance. In the end
+this yielded a total improvement of approximately 10x over my initial working
+implementation.
+
+<img id="time-breakdown" width="80%" src="time-breakdown.svg">
+
+The key optimizations were:
+  1. Don't allocate any intermediate strings. Instead, use file offsets as
+  keys in the hash table, and compare keys by directly reading from the contents
+  of the file. (commit: 7e0ae5ab970d56f4bcee1e246b7ef4360cdba601)
+  2. Don't tokenize the file. Instead, parse entries on-the-fly in the main loop.
+  (commit: fdf2f60676e09a67105800903860cf5782c205dc)
+  3. Reduce contention in the hash table by sharding the values into multiple
+  copies.
+  (commit: 0c44a44b17dbe5aa550296e18784a042416dc903)
+  4. Don't load the file into an array. Instead, operate directly on the mmap'ed
+  file contents.
+  (commits: 86ffcb2c1bfc5f4eff8dc23fe91046c19c3dab4a, 910875f3850bbcf46ca5c4e623407cafc9de6abc, 794a9d530672751d266c0ef9d1e89ed105ecc678)
+
+
+## Potential improvements still TODO
 
 - [x] Work directly on the mmap'ed file instead of loading it into an array first.
 - [ ] Better hash function?
