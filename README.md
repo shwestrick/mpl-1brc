@@ -5,6 +5,9 @@ to solve the *1 Billion Row Challenge*
 ([site](https://www.morling.dev/blog/one-billion-row-challenge/),
 [GitHub](https://github.com/gunnarmorling/1brc)).
 
+See Sam's [blog post](https://shwestrick.github.io/2024/01/09/1brc.html) for
+some discussion and details.
+
 To run it, you need [`smlpkg`](https://github.com/diku-dk/smlpkg) and [`mpl`](https://github.com/MPLLang/mpl) installed.
 
 ```
